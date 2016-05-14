@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Sarjitsu by arcolife</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Sarjitsu</h1>
+      <h2 class="project-tagline">a containerized setup for visualizing system&#39;s SAR data.</h2>
+      <a href="https://github.com/arcolife/sarjitsu" class="btn">View on GitHub</a>
+      <a href="https://github.com/arcolife/sarjitsu/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/arcolife/sarjitsu/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="table-of-contents" class="anchor" href="#table-of-contents" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Table of Contents</h1>
+
+<ul>
+<li><a href="#sarjitsu">Sarjitsu</a></li>
+<li>
+<a href="#installation">Installation</a>
+
+<ul>
+<li><a href="#for-the-impatient">Quick Install</a></li>
+<li><a href="#for-the-ones-whove-found-inner-peace">Customized Installation</a></li>
+<li><a href="#additional-note">Additional Notes</a></li>
+</ul>
+</li>
+<li>
+<a href="#app-flow">App Flow</a>
+
+<ul>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#control-flow">Control Flow</a></li>
+</ul>
+</li>
+<li><a href="#faqs">FAQs</a></li>
+<li>
+<a href="#contributions">Contributions</a>
+
+<ul>
+<li><a href="#todos">TODOs</a></li>
+<li><a href="#issue-tracker">Issue Tracker</a></li>
+<li><a href="#license">License</a></li>
+</ul>
+</li>
+</ul>
+
+<h1>
+<a id="sarjitsu" class="anchor" href="#sarjitsu" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Sarjitsu</h1>
+
+<p>Sarjitsu ingests a SAR (System Activity Reporter) binary data file (located under <code>/var/log/sa/</code>) ..and produces dynamic visualizations based on Grafana. The name is inspired from 'SAR + jistsu', so to speak, unleashing the power of SAR data.</p>
+
+<p>The app is split in 5 container instances as follows:</p>
+
+<p>1) <code>datasource</code>: Used to store timeseries data and metadata. A full-text search engine powered by elasticsearch</p>
+
+<p>2) <code>metricstore</code>: Postgres powered, used by the frontend (grafana in our case) to store metadata about dashboards, datasource and users.</p>
+
+<p>3) <code>frontend</code>: Powered by Grafana, a dynamic visualization frontend, which performs 2 duties; sources data from elasticsearch</p>
+
+<p>4) <code>middleware</code>: A Python-Flask powered API that talks to backend and metricstore; builds scriped dashboards</p>
+
+<p>5) <code>backend</code>: A NodeJS based web app, which runs the web interface
+              for users to upload a SA binary file and obtain visualizations.</p>
+
+<p>Application flow is explained in detail in the section <code>APP FLOW</code> below.</p>
+
+<h1>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>INSTALLATION</h1>
+
+<ul>
+<li>Step 0: Make sure you have <a href="https://www.docker.com/">docker</a> installed.</li>
+</ul>
+
+<h3>
+<a id="for-the-impatient" class="anchor" href="#for-the-impatient" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>For the impatient:</h3>
+
+<ul>
+<li>
+<p>single step setup script  <code>$ ./setup.sh</code></p>
+
+<p>WARNING: This script would remove all previously running instances of sarjitsu.</p>
+</li>
+</ul>
+
+<h3>
+<a id="for-the-ones-whove-found-inner-peace" class="anchor" href="#for-the-ones-whove-found-inner-peace" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>For the ones who've found inner peace:</h3>
+
+<p>Installing by customizing the modularized components, per say, having their own IPs.</p>
+
+<ul>
+<li>
+<p>Step 1: open <code>conf/sarjitsu.conf</code> and edit the params as required. If for example,
+      you don't want to spawn containers for postgres, grafana or elasticsearch,
+      you should leave out their <code>*_HOST</code> parameters empty.</p>
+
+<div class="highlight highlight-source-shell"><pre><span class="pl-c"># metricstore config (postgres) - for grafana's metadata</span>
+DB_HOST=
+<span class="pl-c"># append DB_PORT in grafana.ini db config</span>
+DB_NAME=grafana
+DB_USER=grafana
+DB_PASSWORD=sarjitsu123
+DB_PORT=5432 <span class="pl-c"># default for postgres</span>
+
+<span class="pl-c"># datasource config (elasticsearch) - source of timeseries data</span>
+ES_HOST=172.17.0.3
+ES_PORT=9200
+
+<span class="pl-c"># frontend config (grafana) - visualization framework</span>
+GRAFANA_HOST=
+GRAFANA_DB_TYPE=postgres
+
+<span class="pl-c"># make sure this is above 1024; 3000 is standard</span>
+GRAFANA_PORT=3000</pre></div>
+
+<p>This is minimal config needed to take a look over. Leave the rest of the parameters
+unchanged, if you're unsure.</p>
+</li>
+<li>
+<p>Step 2: After you're sure your configurations are alright, simply run setup.sh</p>
+
+<div class="highlight highlight-source-shell"><pre>$ ./setup.sh</pre></div>
+
+<p>WARNING: This script would remove all previously running instances of sarjitsu.</p>
+</li>
+</ul>
+
+<h3>
+<a id="additional-note" class="anchor" href="#additional-note" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Additional Note</h3>
+
+<p>Be sure to run <code># iptables -F</code> from the host, in case it's not accessible outside. Otherwise check your firewall settings.</p>
+
+<ul>
+<li>To stop all running container instances and cleanup sarjitsu, run <code>$ ./cleanup_sarjitsu</code>
+</li>
+</ul>
+
+<p>Below mentioned ports will be used for port mapping from container to host, and could be configured in <code>conf/sarjitsu.conf</code>. Default bindings are:</p>
+
+<div class="highlight highlight-source-shell"><pre>METRICSTORE_PORT_MAPPING=9600
+DATASOURCE_PORT_MAPPING=9601
+FRONTEND_PORT_MAPPING=9602
+MIDDLEWARE_PORT_MAPPING=9603
+BACKEND_PORT_MAPPING=9604</pre></div>
+
+<p>..This is when all components are containerized.</p>
+
+<hr>
+
+<p>Building this first time would take some time, as docker images are pulled from dockerhub, customized &amp; built; packages are installed and so on..</p>
+
+<p>At the end though, it should output a message like:</p>
+
+<pre><code>Done! Go to http://172.17.0.6:80/ to access your application
+</code></pre>
+
+<p>If it fails in between, you might wanna take a look at your configurations / environment. If you think it's a bug, you're welcome to open an issue here on github.</p>
+
+<p>Also be sure that if you have custom HOST(s) configured, they should match the following versions (for sarjitsu compatibility reasons):</p>
+
+<ul>
+<li>Elasticsearch &lt; 2.0 and &gt; 1.5 (containerized version: 1.7.3)</li>
+<li>Grafana &gt; 2.5 and &lt;= 3.0 (containerized version: 3.0.1-1)</li>
+<li>Postgres == 9.5 (containerized version: 9.5 (dockerhub latest))</li>
+</ul>
+
+<h1>
+<a id="app-flow" class="anchor" href="#app-flow" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>APP FLOW</h1>
+
+<h3>
+<a id="architecture" class="anchor" href="#architecture" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Architecture</h3>
+
+<p>From <code>docs/sarjitsu_architecture.png</code>:</p>
+
+<p><img src="https://raw.githubusercontent.com/arcolife/sarjitsu/master/docs/sarjitsu_architecture.png" alt="arch"></p>
+
+<h3>
+<a id="control-flow" class="anchor" href="#control-flow" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Control Flow</h3>
+
+<p>Following steps involved in visualizing SA binary file:</p>
+
+<ul>
+<li>Step 1: SA Binary upload --&gt; Comptability checks and conversion (if needed)</li>
+<li>Step 2: Conversion to a temporary XML output --&gt; ingestion into Elasticsearch</li>
+<li>Step 3: Creation of dashboard from metadata about the SAR data (time range inferred)</li>
+<li>Step 4: Grafana dashboard generated --&gt; Output tagged with the appropriate nodename</li>
+</ul>
+
+<p>Sarjitsu's frontend service segragates data into various panels, based on params like CPU, Disk, Network usage.</p>
+
+<p>Description of those parameters could be obtained in detail by running the command <code>$ man sar</code> on a linux terminal. Or you could read about them <a href="http://linux.die.net/man/1/sar">here on the official man page for sar command</a></p>
+
+<h1>
+<a id="faqs" class="anchor" href="#faqs" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>FAQs</h1>
+
+<h4>
+<a id="which-sysstat-versions-are-supported" class="anchor" href="#which-sysstat-versions-are-supported" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Which sysstat versions are supported?</h4>
+
+<p>Files generated in RHEL 5 OS (old enough) ..upto the ones generated by the latest sysstat version.</p>
+
+<h4>
+<a id="how-is-it-unique-compared-to-other-existing-solutions" class="anchor" href="#how-is-it-unique-compared-to-other-existing-solutions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>How is it unique compared to other existing solutions?</h4>
+
+<p>What sarjitsu does, is it gives you the unique ability throw in any version of
+  <code>sa binary files</code> from your system's <code>/var/log/sa/</code> folder, to produce visualizations
+  with all the SAR params supported till date. This makes it much easier for a user
+  to go see what's wrong / different about the system behavior by instantly getting
+  access to all the data indexed in a nice NoSQL based full-text search engine and
+  a dynamic visualization playground. It further simplifies this process by providing
+  a web interface to upload these files to!</p>
+
+<p>Sarjitsu also automatically detects the time range of the sa files to display the
+  time-series visualizations and names the dashboards based on the nodename of your system.</p>
+
+<p>It is not tied to a specific machine, but is an independent solution, as a web app.</p>
+
+<h4>
+<a id="is-it-portablescalable-" class="anchor" href="#is-it-portablescalable-" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Is it portable/scalable ?</h4>
+
+<p>Sarjitsu is scalable since it keeps the datasource, frontend and backend separately
+  and is based on completely scalable and portable solution, i.e., Elasticsearch, Postgres, Grafana and NodeJs ..in their respective containerized environments using Docker.</p>
+
+<h1>
+<a id="contributions" class="anchor" href="#contributions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Contributions</h1>
+
+<h3>
+<a id="todos" class="anchor" href="#todos" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>TODOs</h3>
+
+<ul>
+<li>Add service discovery</li>
+<li>An update to sarjitsu, for nested docs. Refer to <a href="https://github.com/grafana/grafana/pull/4694">PR #4694 of grafana</a> for more.</li>
+</ul>
+
+<p>For more, refer to <code>docs/TODO.md</code></p>
+
+<p>If you think there's a bug in sarjitsu, you're welcome to open an issue here on github and could submit PRs for the same. Any refactoring suggestions/PRs to the app are also welcome.</p>
+
+<h3>
+<a id="issue-tracker" class="anchor" href="#issue-tracker" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Issue Tracker</h3>
+
+<p>GitHub Issues and Pull Requests managed via <a href="https://waffle.io/arcolife/sarjitsu">Waffle.io</a></p>
+
+<h3>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>LICENSE</h3>
+
+<p>Refer to GPL v3 <code>LICENSE</code> file included in the repo, for reference.</p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/arcolife/sarjitsu">Sarjitsu</a> is maintained by <a href="https://github.com/arcolife">arcolife</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
